@@ -1,5 +1,10 @@
 pipeline {
     agent any
+     environment {
+        DOCKER_HUB_REPO = "dataguru97/studybuddy"
+        DOCKER_HUB_CREDENTIALS_ID = "dockerhub-token"
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
     stages {
         stage('Checkout Github') {
             steps {
@@ -10,22 +15,45 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image...'
+                dockerImage = docker.build("${DOCKER_HUB_REPO}:${IMAGE_TAG}")
             }
         }
+
         stage('Push Image to DockerHub') {
             steps {
                 echo 'Pushing Docker image to DockerHub...'
+                docker.withRegistry('https://registry.hub.docker.com' , "${DOCKER_HUB_CREDENTIALS_ID}") {
+                        dockerImage.push("${IMAGE_TAG}")
+                    }
             }
         }
-        stage('Install Kubectl & ArgoCD CLI') {
+
+        stage('Update Deployment YAML with New Tag') {
             steps {
-                echo 'Installing Kubectl and ArgoCD CLI...'
+                script {
+                    sh """
+                    sed -i 's|image: riyadspx/studyai:.*|image: riyadspx/studyai:${IMAGE_TAG}|' manifests/deployment.yaml
+                    """
+                }
             }
         }
-        stage('Apply Kubernetes & Sync App with ArgoCD') {
+
+        stage('Commit Updated YAML') {
             steps {
-                echo 'Applying Kubernetes and syncing with ArgoCD...'
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        sh '''
+                        git config user.name "Riyad"
+                        git config user.email "riyadouldabdallah@gmail.com"
+                        git add manifests/deployment.yaml
+                        git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                        git push https://${GIT_USER}:${GIT_PASS}@github.com/RiyadspX/study-buddy-AI.git HEAD:main
+                        '''
+                    }
+                }
             }
         }
+        
+        
     }
 }
