@@ -78,7 +78,7 @@ pipeline {
                     kubeconfig(credentialsId: 'kubeconfig', serverUrl: 'https://192.168.49.2:8443') {
                         sh '''
                         argocd login 8.230.111.129:31704 --username admin --password $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) --insecure
-                        argocd app sync study
+                        argocd app sync studyai
                         '''
                     }
                 }
